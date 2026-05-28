@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import axios from 'axios';
+import AiChat from './AiChat';
 
 // Discrete (step-based) colorscale for the synchronization-region map.
 // Bands chosen to separate the 4 dynamical regimes the supervisor asked us
@@ -56,6 +57,7 @@ function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const plotDivRef = useRef(null);
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -116,17 +118,22 @@ function App() {
   };
 
   const getXTitle = () => {
-    if (mode === 'dynamics') return 'Время t';
-    if (mode === 'compare_n') return 'Время t';
-    if (params.scan_type === 'd_alpha') return 'Фаза (α)';
-    return 'Связь (d)';
+    if (mode === 'dynamics') return 't — время<br><sub>модельные единицы</sub>';
+    if (mode === 'compare_n') return 't — время<br><sub>модельные единицы</sub>';
+    if (params.scan_type === 'd_alpha') return 'α — фазовый сдвиг связи<br><sub>радианы, 0 … π</sub>';
+    return 'd — сила связи<br><sub>безразмерн.</sub>';
   };
 
   const getYTitle = () => {
-    if (mode === 'dynamics') return 'Индекс Нейрона';
-    if (mode === 'compare_n') return 'sin(φ(t))';
-    if (params.scan_type === 'd_alpha') return 'Связь (d)';
-    return 'Расстройка (Δ)';
+    if (mode === 'dynamics') return 'i — номер нейрона<br><sub>i = 0 … N−1, упорядочены по γᵢ</sub>';
+    if (mode === 'compare_n') return 'sin φ(t)<br><sub>проекция фазы, безразм.</sub>';
+    if (params.scan_type === 'd_alpha') return 'd — сила связи<br><sub>безразмерн.</sub>';
+    return 'Δ — расстройка γ₂ − γ₁<br><sub>безразмерн.</sub>';
+  };
+
+  const getColorbarTitle = () => {
+    if (mode === 'dynamics') return 'sin φᵢ(t)';
+    return 'R — параметр<br>порядка';
   };
 
   const buildPlotData = () => {
@@ -141,7 +148,7 @@ function App() {
         x0: 0, dx,
         colorscale: DYNAMICS_COLORSCALE, zmin: -1, zmax: 1,
         showscale: true,
-        colorbar: { title: 'sin(φ)', tickvals: [-1, -0.5, 0, 0.5, 1] },
+        colorbar: { title: getColorbarTitle(), tickvals: [-1, -0.5, 0, 0.5, 1] },
       }];
     }
     if (mode === 'compare_n') {
@@ -159,9 +166,9 @@ function App() {
       colorscale: SYNC_COLORSCALE, zmin: 0, zmax: 1,
       showscale: true,
       colorbar: {
-        title: 'Sync R',
+        title: getColorbarTitle(),
         tickvals: [0.15, 0.5, 0.825, 0.975],
-        ticktext: ['async/death', 'antiphase', 'partial', 'in-phase'],
+        ticktext: ['асинх./смерть', 'противоф.', 'частичн.', 'синфазн.'],
       },
     }];
   };
@@ -196,10 +203,19 @@ function App() {
     <span className="text-primary text-sm">{params.base_gamma.toFixed(5)}</span>
     </div>
     <div className="flex flex-col text-right">
-    <span className="text-slate-500 uppercase tracking-wider">Δ (расстройка)</span>
-    <span className="text-secondary text-sm">{(mode === 'map' && params.scan_type === 'd_delta'
-      ? `[${params.delta_min.toFixed(4)}, ${params.delta_max.toFixed(4)}]`
-      : params.delta_gamma.toFixed(5))}</span>
+    {mode === 'compare_n' ? (
+      <>
+      <span className="text-slate-500 uppercase tracking-wider">n значения</span>
+      <span className="text-secondary text-sm">[{params.cmp_n_values.join(', ')}]</span>
+      </>
+    ) : (
+      <>
+      <span className="text-slate-500 uppercase tracking-wider">Δ (расстройка)</span>
+      <span className="text-secondary text-sm">{mode === 'map' && params.scan_type === 'd_delta'
+        ? `[${params.delta_min.toFixed(4)}, ${params.delta_max.toFixed(4)}]`
+        : params.delta_gamma.toFixed(5)}</span>
+      </>
+    )}
     </div>
     </div>
 
@@ -212,7 +228,7 @@ function App() {
 
       <div className="grid grid-cols-2 gap-3 mb-2">
       <div className="space-y-2">
-      <label className="text-[10px] text-slate-400 font-bold uppercase">Форма (n)</label>
+      <label className="text-[10px] text-slate-400 font-bold uppercase">Форма (<span className="normal-case">n</span>)</label>
       <input className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xs text-white font-mono focus:border-primary outline-none" type="number" step="0.1" name="n_param" value={params.n_param} onChange={handleChange}/>
       </div>
       <div className="space-y-2">
@@ -295,15 +311,37 @@ function App() {
       )}
       </div>
 
+      {params.scan_type === 'd_alpha' && (
+        <div className="mt-2 space-y-1">
+        <label className="text-[10px] text-slate-500 uppercase font-bold">Δ — разброс γ по ансамблю</label>
+        <input className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xs text-white font-mono focus:border-secondary outline-none" type="number" step="0.001" name="delta_gamma" value={params.delta_gamma} onChange={handleChange}/>
+        </div>
+      )}
+
       {params.scan_type === 'd_delta' && (
+        <>
         <div className="mt-2 space-y-1">
         <label className="text-[10px] text-slate-500 uppercase font-bold">Фикс. Alpha</label>
         <input className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xs text-white font-mono focus:border-secondary outline-none" type="number" name="fixed_alpha" value={params.fixed_alpha} onChange={handleChange}/>
         </div>
+        <div className="mt-2 p-3 rounded-lg bg-slate-900/40 border border-slate-800 text-[10px] leading-relaxed">
+        <div className="flex items-center justify-between mb-1">
+        <span className="text-slate-500 uppercase font-bold tracking-wider">Ядро</span>
+        <span className={`font-mono px-2 py-0.5 rounded border ${params.n_neurons <= 2 ? 'text-amber-400 border-amber-400/40 bg-amber-400/5' : 'text-secondary border-secondary/40 bg-secondary/5'}`}>
+          {params.n_neurons <= 2 ? 'pair · N=2' : `mean-field · N=${params.n_neurons}`}
+        </span>
+        </div>
+        <span className="text-slate-400">
+          {params.n_neurons <= 2
+            ? 'Классическая пара осцилляторов с IC [0, 0.5]. Δ = попарная расстройка γ₂−γ₁.'
+            : 'Ансамбль среднего поля. Δ = разброс γ по ансамблю; IC — случайный по сиду.'}
+        </span>
+        </div>
+        </>
       )}
       <div className="mt-2 grid grid-cols-2 gap-3">
       <div className="space-y-1">
-      <label className="text-[10px] text-slate-500 uppercase font-bold">Форма (n)</label>
+      <label className="text-[10px] text-slate-500 uppercase font-bold">Форма (<span className="normal-case">n</span>)</label>
       <input className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xs text-white font-mono focus:border-secondary outline-none" type="number" name="n_param" value={params.n_param} onChange={handleChange}/>
       </div>
       <div className="space-y-1">
@@ -326,17 +364,21 @@ function App() {
       </div>
     )}
 
+    {mode !== 'compare_n' && (
     <div className="space-y-5">
     <div className="flex items-center gap-2 text-primary border-b border-slate-800 pb-2"><span className="material-symbols-outlined text-lg">memory</span><h3 className="text-xs font-bold uppercase tracking-[0.1em] text-white">Система</h3></div>
     <div className="grid grid-cols-2 gap-4">
     <div className="space-y-2 group"><label className="text-[10px] text-slate-500 uppercase tracking-wider font-bold group-focus-within:text-white">Нейроны (N)</label><input className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 text-xs text-white font-mono focus:border-primary outline-none" type="number" name="n_neurons" value={params.n_neurons} onChange={handleChange}/></div>
     <div className="space-y-2 group"><label className="text-[10px] text-slate-500 uppercase tracking-wider font-bold group-focus-within:text-white">Время (T)</label><input className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-3 text-xs text-white font-mono focus:border-primary outline-none" type="number" name="t_end" value={params.t_end} onChange={handleChange}/></div>
     </div>
+    {!(mode === 'map' && params.scan_type === 'd_delta' && params.n_neurons <= 2) && (
     <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800/50 space-y-4">
     <div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="material-symbols-outlined text-slate-400 text-sm">casino</span><label className="text-xs text-slate-300 font-medium">Случайное число</label></div><label className="relative inline-flex items-center cursor-pointer"><input className="sr-only peer" type="checkbox" checked={isRandomSeed} onChange={e => setIsRandomSeed(e.target.checked)}/><div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div></label></div>
     <input className={`w-full bg-slate-950/50 border border-slate-800 rounded p-2 text-xs text-slate-400 font-mono ${isRandomSeed ? 'opacity-50' : ''}`} disabled={isRandomSeed} type="number" name="seed" value={params.seed} onChange={handleChange}/>
     </div>
+    )}
     </div>
+    )}
     </div>
 
     <div className="p-6 border-t border-slate-800 bg-bg-dark/80 backdrop-blur-md">
@@ -378,9 +420,9 @@ function App() {
           paper_bgcolor: 'rgba(0,0,0,0)',
          plot_bgcolor: 'rgba(0,0,0,0)',
          font: { color: '#94a3b8', family: 'Inter' },
-         xaxis: { title: getXTitle(), showgrid: false },
-         yaxis: { title: getYTitle(), showgrid: mode === 'compare_n', gridcolor: '#1e293b' },
-         margin: { t: 40, r: 20, l: 60, b: 60 },
+         xaxis: { title: { text: getXTitle(), standoff: 14 }, showgrid: false },
+         yaxis: { title: { text: getYTitle(), standoff: 14 }, showgrid: mode === 'compare_n', gridcolor: '#1e293b' },
+         margin: { t: 40, r: 30, l: 80, b: 80 },
          autosize: true,
          hovermode: 'closest',
          showlegend: mode === 'compare_n',
@@ -389,6 +431,8 @@ function App() {
         useResizeHandler={true}
         style={{ width: "100%", height: "100%" }}
         config={{ displayModeBar: true, displaylogo: false }}
+        onInitialized={(_, gd) => { plotDivRef.current = gd; }}
+        onUpdate={(_, gd) => { plotDivRef.current = gd; }}
         />
     )}
     </div>
@@ -396,11 +440,25 @@ function App() {
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-auto shrink-0">
     <div className="bg-panel-dark/40 border border-slate-700/60 rounded-xl p-4 relative overflow-hidden group hover:border-primary/50"><div className="relative z-10"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">γ₁ (base_gamma)</p><h3 className="text-xl font-bold text-primary font-mono">{params.base_gamma.toFixed(5)}</h3></div></div>
-    <div className="bg-panel-dark/40 border border-slate-700/60 rounded-xl p-4 relative overflow-hidden group hover:border-secondary/50"><div className="relative z-10"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Δ (расстройка)</p><h3 className="text-xl font-bold text-secondary font-mono">{mode === 'map' && params.scan_type === 'd_delta' ? `${params.delta_min.toFixed(4)}…${params.delta_max.toFixed(4)}` : params.delta_gamma.toFixed(5)}</h3></div></div>
+    <div className="bg-panel-dark/40 border border-slate-700/60 rounded-xl p-4 relative overflow-hidden group hover:border-secondary/50"><div className="relative z-10">
+    {mode === 'compare_n' ? (
+      <>
+      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">n значения</p>
+      <h3 className="text-xl font-bold text-secondary font-mono">[{params.cmp_n_values.join(', ')}]</h3>
+      </>
+    ) : (
+      <>
+      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Δ (расстройка)</p>
+      <h3 className="text-xl font-bold text-secondary font-mono">{mode === 'map' && params.scan_type === 'd_delta' ? `${params.delta_min.toFixed(4)}…${params.delta_max.toFixed(4)}` : params.delta_gamma.toFixed(5)}</h3>
+      </>
+    )}
+    </div></div>
     <div className="bg-panel-dark/40 border border-slate-700/60 rounded-xl p-4 relative overflow-hidden group hover:border-amber-400/50"><div className="relative z-10"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">⟨Ω⟩ (наблюд. частота)</p><h3 className="text-xl font-bold text-amber-400 font-mono">{data && data.omega_mean !== undefined ? (typeof data.omega_mean === 'number' ? data.omega_mean.toFixed(4) : '—') : (data && data.traces ? data.traces.map(t => t.omega.toFixed(2)).join(' / ') : '—')}</h3></div></div>
     <div className="bg-panel-dark/40 border border-slate-700/60 rounded-xl p-4 relative overflow-hidden group hover:border-white/30"><div className="relative z-10"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Статус · интегратор</p><h3 className="text-xl font-bold text-white font-mono">{loading ? 'BUSY' : 'IDLE'} · RK4</h3></div></div>
     </div>
     </div>
+
+    <AiChat mode={mode} params={params} data={data} plotDivRef={plotDivRef} />
     </main>
     </>
   );

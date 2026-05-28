@@ -66,10 +66,15 @@ func handleCompareN(w http.ResponseWriter, r *http.Request) {
 	proxyToPython(w, r, "/compare_n")
 }
 
+func handleAiChat(w http.ResponseWriter, r *http.Request) {
+	proxyToPython(w, r, "/ai/chat")
+}
+
 func main() {
 	http.HandleFunc("/api/run", handleSimulate)
 	http.HandleFunc("/api/scan", handleScan)
 	http.HandleFunc("/api/compare_n", handleCompareN)
+	http.HandleFunc("/api/ai/chat", handleAiChat)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeCORS(w)
 		if r.Method == "OPTIONS" {
