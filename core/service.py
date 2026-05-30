@@ -236,8 +236,10 @@ def compute_sync_regions_meanfield(d_vals, delta_vals, fixed_alpha,
     """D x Delta скан для N-нейронного среднего поля при фиксированном alpha.
 
     Delta здесь = разброс gamma по ансамблю: gammas = linspace(g1, g1+Delta, N).
-    Для N=2 совпадает с compute_sync_regions с точностью до начальных условий
-    (тут случайные по сиду, там [0, 0.5]).
+    Для N=2 это ядро отличается от compute_sync_regions: связь идёт с множителем
+    d/N (а не d) и включает self-член j=i, дающий постоянный сдвиг частоты
+    -(d/N)*sin(alpha). Численные значения d между двумя ядрами не сопоставимы
+    напрямую.
     """
     n_d = len(d_vals)
     n_delta = len(delta_vals)
@@ -310,7 +312,7 @@ def compute_single_trace_rk4(t_end, dt, base_gamma, n_param, initial_phase):
 # ---------------------------------------------------------------------------
 
 def _compute_sync_thresholds(matrix, d_values, delta_values, R_thresh=0.95):
-    """Для D x Delta карты [n_delta, n_d]: d_min на каждом ряду + d_opt, delta_max."""
+    """Для D x Delta карты [n_delta, n_d]: d_min на каждом ряду + d_min (минимум по карте), delta_max."""
     mat = np.asarray(matrix)
     n_delta, n_d = mat.shape
     d_min_per_delta = []
@@ -321,21 +323,21 @@ def _compute_sync_thresholds(matrix, d_values, delta_values, R_thresh=0.95):
 
     finite = [v for v in d_min_per_delta if v is not None]
     if finite:
-        d_opt = float(min(finite))
+        d_min = float(min(finite))
         i_opt = next(i for i, v in enumerate(d_min_per_delta)
-                     if v is not None and v == d_opt)
-        delta_at_d_opt = float(delta_values[i_opt])
+                     if v is not None and v == d_min)
+        delta_at_d_min = float(delta_values[i_opt])
         i_last = max(i for i, v in enumerate(d_min_per_delta) if v is not None)
         delta_max = float(delta_values[i_last])
     else:
-        d_opt = delta_at_d_opt = delta_max = None
+        d_min = delta_at_d_min = delta_max = None
 
     return {
         "kind": "d_delta",
         "R_threshold": R_thresh,
         "d_min_per_delta": d_min_per_delta,
-        "d_opt": d_opt,
-        "delta_at_d_opt": delta_at_d_opt,
+        "d_min": d_min,
+        "delta_at_d_min": delta_at_d_min,
         "delta_max": delta_max,
     }
 

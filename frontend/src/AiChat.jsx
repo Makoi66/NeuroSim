@@ -40,12 +40,12 @@ const QUICK_ACTIONS = {
   ],
   d_alpha: [
     'Где оптимум синхронизации на этой карте?',
-    'Опиши структуру языков синхронизации',
+    'Опиши, как меняется синхронизация по α при увеличении d',
     'Как фазовый сдвиг α влияет на режим?',
   ],
   d_delta: [
     'Где порог захвата по силе связи d?',
-    'Сравни ширину области захвата с оценкой Δ ≤ d/2',
+    'Сравни ширину области захвата с оценкой Δ ≤ 2d·cos α',
     'Опиши форму области синхронизации',
   ],
 };
@@ -124,8 +124,8 @@ function buildResultSummary(mode, scanType, data) {
           alpha_crit: t.alpha_crit,
         }),
         ...(scanType === 'd_delta' && {
-          d_opt: t.d_opt,
-          delta_at_d_opt: t.delta_at_d_opt,
+          d_min: t.d_min,
+          delta_at_d_min: t.delta_at_d_min,
           delta_max: t.delta_max,
         }),
       };
